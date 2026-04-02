@@ -1,0 +1,71 @@
+import cv2
+import mediapipe as mp
+import numpy as np
+import torch
+import random
+
+mp_holistic = mp.solutions.holistic
+holistic = mp_holistic.Holistic()
+
+# Dummy model (replace later)
+class DummyModel:
+    def predict(self, x):
+        return random.choice(["Hello", "Thank you", "Yes", "No"])
+
+model = DummyModel()
+
+sequence = []
+SEQUENCE_LENGTH = 30
+
+cap = cv2.VideoCapture(0)
+
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = holistic.process(image)
+
+    keypoints = []
+
+    if results.pose_landmarks:
+        for lm in results.pose_landmarks.landmark:
+            keypoints.extend([lm.x, lm.y, lm.z])
+    else:
+        keypoints.extend([0]*99)
+   
+
+    # Left Hand
+    if results.left_hand_landmarks:
+        for lm in results.left_hand_landmarks.landmark:
+            keypoints.extend([lm.x, lm.y, lm.z])
+    else:
+        keypoints.extend([0]*63)
+    
+    # Right Hand
+    if results.right_hand_landmarks:
+        for lm in results.right_hand_landmarks.landmark:
+            keypoints.extend([lm.x, lm.y, lm.z])
+    else:
+        keypoints.extend([0]*63)  
+   
+    sequence.append(keypoints)
+
+    if len(sequence) > SEQUENCE_LENGTH:
+        sequence.pop(0)
+
+    if len(sequence) == SEQUENCE_LENGTH:
+        input_data = np.array(sequence)
+        prediction = model.predict(input_data)
+
+        cv2.putText(frame, prediction, (10, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+
+    cv2.imshow("NSL Demo", frame)
+
+    if cv2.waitKey(10) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
